@@ -141,7 +141,7 @@ def gpt4o_response(text, image_path):
             ]
             }
         ],
-        "max_tokens": 1000
+        "max_tokens": 200
     }
 
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)

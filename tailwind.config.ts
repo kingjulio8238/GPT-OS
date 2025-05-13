@@ -100,6 +100,21 @@ const config: Config = {
         "tremor-title": ["1.125rem", { lineHeight: "1.75rem" }],
         "tremor-metric": ["1.875rem", { lineHeight: "2.25rem" }],
       },
+      keyframes: {
+        "fade-in": {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "progress": {
+          "0%": { width: "0%", opacity: "0.5" },
+          "50%": { opacity: "0.7" },
+          "100%": { width: "100%", opacity: "0.5" }
+        }
+      },
+      animation: {
+        "fade-in": "fade-in 0.5s ease-out forwards",
+        "progress": "progress 2s ease-in-out infinite",
+      },
     },
   },
   safelist: [

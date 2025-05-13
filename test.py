@@ -3,7 +3,8 @@ import subprocess
 import shlex
 import os
 import sys
-from mlx_lm.utils import load, generate_step
+from mlx_lm.utils import load
+from mlx_lm import generate
 import mlx.core as mx
 from PIL import Image
 import base64
@@ -13,6 +14,10 @@ import re
 import requests
 import tempfile
 from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # response = generate(model, tokenizer, temp=0.7, max_tokens=500, prompt="write me a poem about the ocean", verbose=True)
 
@@ -52,32 +57,24 @@ def generate_response(model_name, combined_prompt):
     else:
         model, tokenizer = load("mlx-community/Phi-3-mini-4k-instruct-4bit")
 
-    tokens = []
     start_time = time.time()  # Start timing
-
-    for (token, prob), n in zip(
-        generate_step(mx.array(tokenizer.encode(combined_prompt)), model, temperature),
-        range(context_length),
-    ):
-
-        if token == tokenizer.eos_token_id:
-            break
-
-        tokens.append(token)
-        text = tokenizer.decode(tokens)
-
-        for sw in stop_words:
-            if text.endswith(sw):
-                # Definitely ends with a stop word. Stop generating
-                return
-
-    # Decode the tokens into text
-    text = tokenizer.decode(tokens)
+    
+    # Use the generate function from mlx_lm
+    response = generate(
+        model=model,
+        tokenizer=tokenizer,
+        prompt=combined_prompt,
+        max_tokens=500,
+        temp=0.7,
+        stop_words=stop_words,
+        verbose=False
+    )
+    
     end_time = time.time()  # End timing
-    tokens_per_second = len(tokens) / (
-        end_time - start_time
-    )  # Calculate tokens per second
-    yield text, tokens_per_second
+    tokens = tokenizer.encode(response)
+    tokens_per_second = len(tokens) / (end_time - start_time)  # Calculate tokens per second
+    
+    yield response, tokens_per_second
 
 
 def print_chunks(text):
@@ -123,70 +120,133 @@ def encode_image(image_path):
 
 
 def gpt4o_response(text, image_path):
+    try:
+        # Getting the base64 string
+        base64_image = encode_image(image_path)
+        api_key = os.environ.get("OPENAI_API_KEY", "INSERT YOUR API KEY")
+        
+        # Check if API key is set
+        if api_key == "INSERT YOUR API KEY" or not api_key:
+            error_msg = "OpenAI API key not set. Please set the OPENAI_API_KEY environment variable."
+            print(error_msg)
+            print("$!$openai")
+            print("^@^0")
+            return
+            
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
 
-    # Getting the base64 string
-    base64_image = encode_image(image_path)
-    api_key = "INSERT YOUR API KEY"
-    # If you're trying to be cheeky and use the one from past commits in this repo, it's been deactivated :(
-    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+        t = time.time()
+        payload = {
+            "model": "gpt-4o",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": text},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                        },
+                    ],
+                }
+            ],
+            "max_tokens": 200,
+        }
 
-    t = time.time()
-    payload = {
-        "model": "gpt-4o",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": text},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-                    },
-                ],
-            }
-        ],
-        "max_tokens": 1000,
-    }
-
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions", headers=headers, json=payload
-    )
-    t_end = time.time()
-    out = response.json()
-    output = out["choices"][0]["message"]["content"]
-    tok_speed = len(output.split(" ")) / (t_end - t)
-    model = "openai"
-    print(output)
-    print("$!$" + model)
-    print("^@^" + str(tok_speed))
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions", headers=headers, json=payload
+        )
+        t_end = time.time()
+        
+        # Check if the response is successful
+        response.raise_for_status()
+        out = response.json()
+        
+        # Check if the expected keys exist in the response
+        if "choices" not in out or len(out["choices"]) == 0:
+            error_msg = f"Unexpected API response format: {out}"
+            print(error_msg)
+            print("$!$openai")
+            print("^@^0")
+            return
+            
+        output = out["choices"][0]["message"]["content"]
+        tok_speed = len(output.split(" ")) / (t_end - t)
+        model = "openai"
+        print(output)
+        print("$!$" + model)
+        print("^@^" + str(tok_speed))
+        
+    except requests.exceptions.RequestException as e:
+        error_msg = f"API request error: {str(e)}"
+        print(error_msg)
+        print("$!$openai")
+        print("^@^0")
+        
+    except KeyError as e:
+        error_msg = f"API response missing expected keys: {str(e)}\nResponse: {out if 'out' in locals() else 'No response data'}"
+        print(error_msg)
+        print("$!$openai")
+        print("^@^0")
+        
+    except Exception as e:
+        error_msg = f"Unexpected error: {str(e)}"
+        print(error_msg)
+        print("$!$openai")
+        print("^@^0")
 
 
 def ollama_response(text, image_path):
-    base64_image = encode_image(image_path)
+    try:
+        base64_image = encode_image(image_path)
 
-    headers = {
-        "Content-Type": "application/json",
-    }
+        headers = {
+            "Content-Type": "application/json",
+        }
 
-    payload = {
-        "model": "llava:13b",
-        "prompt": text,
-        "images": [base64_image],
-        "stream": False,
-    }
+        payload = {
+            "model": "llava:13b",
+            "prompt": text,
+            "images": [base64_image],
+            "stream": False,
+        }
 
-    response = requests.post(
-        "http://localhost:11434/api/generate", headers=headers, json=payload
-    )
+        response = requests.post(
+            "http://localhost:11434/api/generate", headers=headers, json=payload
+        )
+        
+        response.raise_for_status()
+        json_response = response.json()
+        
+        if "response" not in json_response:
+            error_msg = f"Unexpected API response format: {json_response}"
+            print(error_msg)
+            print("$!$ollama")
+            print("^@^0")
+            return
+            
+        output = json_response["response"]
+        
+        if "eval_count" in json_response and "eval_duration" in json_response:
+            tok_speed = json_response["eval_count"] / json_response["eval_duration"] * 10**9
+        else:
+            tok_speed = 0
 
-    json = response.json()
-    output = json["response"]
-
-    tok_speed = json["eval_count"] / json["eval_duration"] * 10**9
-
-    print(output)
-    print("$!$" + model)
-    print("^@^" + str(tok_speed))
+        print(output)
+        print("$!$ollama")
+        print("^@^" + str(tok_speed))
+        
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Ollama API request error: {str(e)}"
+        print(error_msg)
+        print("$!$ollama")
+        print("^@^0")
+        
+    except Exception as e:
+        error_msg = f"Unexpected error in Ollama response: {str(e)}"
+        print(error_msg)
+        print("$!$ollama")
+        print("^@^0")
 
 
 def extract_text(input_text):
@@ -236,16 +296,33 @@ def process_data(model, text, image_data_url):
             response = master_generate(model, combined_prompt)
 
     else:
-        """
-        header, encoded = image_data_url.split(",", 1)
-        image_data = base64.b64decode(encoded)
-        image = Image.open(BytesIO(image_data))
-        image.save("temp_image.png")  # Save the image temporarily
-        """
-        combined_prompt = f"You are a helpful desktop assistant. We've also provided some context from the user's screen. Now answer the user's question: {text}"
-        response = gpt4o_response(
-            combined_prompt, tempfile.gettempdir() + "/screenshot.png"
-        )
+        try:
+            # Try using OpenAI's GPT-4o first
+            combined_prompt = f"You are a helpful desktop assistant. We've also provided some context from the user's screen. Now answer the user's question: {text}"
+            response = gpt4o_response(
+                combined_prompt, tempfile.gettempdir() + "/screenshot.png"
+            )
+            
+            # If response is None or an error occurred in gpt4o_response
+            if "API" in str(response) or "error" in str(response).lower():
+                raise Exception("OpenAI API error, falling back to Phi model")
+                
+        except Exception as e:
+            print(f"Falling back to Phi model due to: {str(e)}")
+            # Fall back to using Phi model
+            combined_prompt = f"You are a helpful desktop assistant. We've also provided some context from the user's screen. Now answer the user's question: {text}"
+            t_o = time.time()
+            output = multimodal_generate(
+                tempfile.gettempdir() + "/screenshot.png", combined_prompt
+            )
+            lst = output.split("<|assistant|>")
+            lst2 = lst[1].split("==")
+            output = lst2[0]
+            t_end = time.time()
+            tok_speed = len(output.split(" ")) / (t_end - t_o)
+            print(output)
+            print("$!$phi")  # Use phi instead of openai since we're falling back
+            print("^@^" + str(tok_speed))
 
     # Clean up temporary image file
     # os.remove("temp_image.png") # why tf is this here

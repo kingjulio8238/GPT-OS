@@ -54,92 +54,67 @@ function ModelMessage({ message }: Props) {
   if (!message) return null;
 
   return (
-    <div className="flex flex-col space-y-1 px-2.5 py-2 border bg-gray-100 rounded-xl">
-      <div className="flex flex-row space-x-1.5">
-        <Image src={imageUrl} height={16} width={16} className="my-auto" alt="mistral logo" />
-        <p className="text-xs font-semibold text-[#363636]">{modelName}</p>
+    <div className="flex flex-col space-y-3 w-full max-w-2xl px-6 py-5 bg-transparent backdrop-blur-md rounded-3xl mx-auto border border-white/20 animate-fade-in shadow-lg mb-8">
+      <div className="text-white mt-1">
+        <Markdown
+          options={{
+            overrides: {
+              b: {
+                component: ({ children, ...props }) => <strong {...props} className="text-white">{children}</strong>,
+              },
+              i: {
+                component: ({ children, ...props }) => <em {...props} className="text-white">{children}</em>,
+              },
+              code: {
+                component: ({ children, ...props }) => (
+                  <pre {...props} className="language-python bg-transparent p-2 rounded border border-white/10">
+                    <code className="text-xs break-all text-white">{children}</code>
+                  </pre>
+                ),
+              },
+              ul: {
+                component: ({ children, ...props }) => (
+                  <ul {...props} className="text-base ml-5 list-disc mt-1 text-white">
+                    {children}
+                  </ul>
+                ),
+              },
+              li: {
+                component: ({ children, ...props }) => (
+                  <li {...props} className="text-base mt-0.5 text-white">
+                    {children}
+                  </li>
+                ),
+              },
+              p: {
+                component: ({ children, ...props }) => (
+                  <p {...props} className="text-base my-2 text-white leading-relaxed">
+                    {children}
+                  </p>
+                ),
+              },
+              h1: {
+                component: ({ children, ...props }) => (
+                  <h1 {...props} className="text-xl mt-3 font-bold text-white">
+                    {children}
+                  </h1>
+                ),
+              },
+            },
+          }}
+        >
+          {updatedMessage}
+        </Markdown>
       </div>
-      <Markdown
-        options={{
-          overrides: {
-            b: {
-              component: ({ children, ...props }) => <strong {...props}>{children}</strong>,
-            },
-            i: {
-              component: ({ children, ...props }) => <em {...props}>{children}</em>,
-            },
-            code: {
-              component: ({ children, ...props }) => (
-                <pre {...props} className="language-python">
-                  <code className="text-[10px] break-all text-[#333333]">{children}</code>
-                </pre>
-              ),
-            },
-            ul: {
-              component: ({ children, ...props }) => (
-                <ul {...props} className="text-xs ml-5 list-disc mt-1 text-[#333333]">
-                  {children}
-                </ul>
-              ),
-            },
-            li: {
-              component: ({ children, ...props }) => (
-                <li {...props} className="text-sm mt-0.5 text-[#333333]">
-                  {children}
-                </li>
-              ),
-            },
-            p: {
-              component: ({ children, ...props }) => (
-                <p {...props} className="text-xs mt-2.5 text-[#333333]">
-                  {children}
-                </p>
-              ),
-            },
-            h1: {
-              component: ({ children, ...props }) => (
-                <h1 {...props} className="text-sm mt-3 font-bold text-[#333333]">
-                  {children}
-                </h1>
-              ),
-            },
-          },
-        }}
-      >
-        {updatedMessage}
-      </Markdown>
-      <div className="mt-2 flex flex-row justify-between items-center w-full">
-        <button className="flex flex-row space-x-1 py-1 px-2 rounded hover:bg-gray-300">
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 15 15"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="my-auto"
-          >
-            <path
-              d="M5 2V1H10V2H5ZM4.75 0C4.33579 0 4 0.335786 4 0.75V1H3.5C2.67157 1 2 1.67157 2 2.5V12.5C2 13.3284 2.67157 14 3.5 14H11.5C12.3284 14 13 13.3284 13 12.5V2.5C13 1.67157 12.3284 1 11.5 1H11V0.75C11 0.335786 10.6642 0 10.25 0H4.75ZM11 2V2.25C11 2.66421 10.6642 3 10.25 3H4.75C4.33579 3 4 2.66421 4 2.25V2H3.5C3.22386 2 3 2.22386 3 2.5V12.5C3 12.7761 3.22386 13 3.5 13H11.5C11.7761 13 12 12.7761 12 12.5V2.5C12 2.22386 11.7761 2 11.5 2H11Z"
-              fill="currentColor"
-              fillRule="evenodd"
-              clipRule="evenodd"
-            ></path>
-          </svg>
-          <p className="text-[10px]">Copy</p>
-        </button>
-        <p className="text-[10px] font-mono">Inference speed: {speed.toFixed(2)} tokens/sec</p>
+      <div className="mt-3 flex flex-row justify-end items-center w-full text-gray-400 border-t border-gray-700/30 pt-2">
+        <p className="text-sm font-mono text-white/70">{speed ? `${speed.toFixed(2)} tokens/sec` : ''}</p>
       </div>
     </div>
   );
 }
 
 function UserMessage({ message }: Props) {
-  return (
-    <div className="flex flex-col space-y-0.5 px-2.5 py-2.5 border bg-gray-100 rounded-xl">
-      <p className="text-xs font-semibold text-[#363636]">Me</p>
-      <p className="text-sm text-[#333333] font-light break-all">{message}</p>
-    </div>
-  );
+  return null;
 }
 
 export default function Message({ type, message }: Props) {

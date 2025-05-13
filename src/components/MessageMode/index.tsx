@@ -11,15 +11,19 @@ export default function MessageMode() {
   const [text, setText] = useState<string>("");
   const [currentMessage, setCurrentMessage] = useState<any>("");
   const [endReached, setEndReached] = useState<boolean>(false);
-  const [messages, setMessages] = useState<any>([]);
+  const [latestMessage, setLatestMessage] = useState<any>(null);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [showResponse, setShowResponse] = useState<boolean>(false);
   const [latestImage, setLatestImage] = useState<string>(""); // Store the latest image value
   const [selectedOption, setSelectedOption] = useState<string>("OpenAI"); // Selected option in dropdown
   const inputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<any>(null);
+  const messageRef = useRef<any>(null);
 
   useEffect(() => {
-    messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-  }, [messages, currentMessage]);
+    if (messageRef.current) {
+      messageRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [latestMessage]);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -29,9 +33,11 @@ export default function MessageMode() {
 
   useEffect(() => {
     if (endReached) {
-      setMessages((prevMessages: any) => [...prevMessages, { type: "ai", message: currentMessage }]);
+      setLatestMessage({ type: "ai", message: currentMessage });
       setCurrentMessage("");
       setEndReached(false);
+      setIsGenerating(false);
+      setShowResponse(true);
     }
   }, [endReached]);
 
@@ -39,6 +45,10 @@ export default function MessageMode() {
     //@ts-ignore
     window.electronAPI.on("receiveTokens", (event, arg) => {
       setCurrentMessage(arg);
+      setIsGenerating(true);
+      setShowResponse(false);
+      // Immediately clear any previous message when new tokens start coming in
+      setLatestMessage(null);
     });
 
     //@ts-ignore
@@ -64,81 +74,81 @@ export default function MessageMode() {
     setSelectedOption(event.target.value);
   };
 
-  return (
-    <div className="h-[100vh] bg-white">
-      {/* Dropdown */}
-      <div className="flex justify-center items-center">
-        {/* Dropdown */}
-        <select
-          value={selectedOption}
-          onChange={handleOptionChange}
-          className="rounded-md border border-gray-300 pr-8 bg-white text-sm leading-5 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 px-3 py-2"
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        {/* Render the selected image */}
-        <div className="ml-2">
-          <Image
-            src={`/images/${selectedOption}.png`} // Use the selected value to change the image source
-            height={24}
-            width={24}
-            alt="Selected Image"
-          />
-        </div>
-      </div>
+  const handleNewQuery = (e: React.FormEvent) => {
+    e.preventDefault();
+    const messageToSend = selectedOption + "$!$" + text;
+    console.log(messageToSend);
+    //@ts-ignore
+    window.electronAPI.send("sendChat", messageToSend);
+    setText("");
+    setIsGenerating(true);
+    setShowResponse(false);
+    // Clear previous response when starting a new query
+    setLatestMessage(null);
+  };
 
-      <div
-        style={{
-          height: "calc(100vh - 54px)",
-          overflowY: "auto",
-        }}
-        className="w-full flex flex-col justify-between items-between"
-      >
-        <div
-          className="flex-1 flex flex-col p-2 space-y-1.5"
-          style={{
-            height: "calc(100vh - 54px)",
-            overflowY: "auto",
-            scrollBehavior: "auto", // Auto scroll to the bottom
-          }}
-        >
-          {messages.map((value: any, index: number) => {
-            return <Message key={index} type={value.type} message={value.message} />;
-          })}
-          {currentMessage.length ? <Message type="ai" message={selectedOption + "$!$" + currentMessage} /> : <></>}
-          <div ref={messagesEndRef} />
+  return (
+    <>
+      {/* Full-screen background */}
+      <div className="fixed inset-0 h-full w-full bg-cover bg-center" style={{ backgroundImage: 'url("/images/background.jpg")' }}>
+        {/* Semi-transparent overlay with light gradient */}
+        {/* <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-black/5 backdrop-blur-[0.5px]"></div> */}
+      </div>
+      
+      {/* Response area - only shown when there's a response to display and not generating new response */}
+      {showResponse && latestMessage && !isGenerating && (
+        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="w-full max-w-3xl mx-auto pointer-events-auto">
+            <Message 
+              type="ai" 
+              message={latestMessage.message} 
+            />
+            <div ref={messageRef} />
+          </div>
         </div>
-        <br></br>
-        <div className="flex flex-row space-x-3"></div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            // Append the latest image value to the beginning of the text
-            const messageToSend = selectedOption + "$!$" + text;
-            console.log(messageToSend);
-            //@ts-ignore
-            window.electronAPI.send("sendChat", messageToSend);
-            setMessages((prevMessages: any) => [...prevMessages, { type: "user", message: text }]);
-            setText("");
-          }}
-          className="fixed bottom-0 left-0 w-full p-2 flex flex-row space-x-3"
-        >
-          <div className="w-full p-1 bg-white flex rounded-full border flex-row justify-between items-between space-x-3">
-            <input
-              ref={inputRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              type="text"
-              className="text-xs bg-gray-300 rounded-full font-medium text-[#333333] flex-1 border-none focus:outline-none focus:ring-0"
-              placeholder="Say something"
+      )}
+      
+      {/* Input bar - always visible at bottom */}
+      <form
+        onSubmit={handleNewQuery}
+        className="fixed bottom-8 left-0 w-full flex justify-center items-center z-20"
+      >
+        <div className={`w-full max-w-lg mx-auto p-3 bg-transparent backdrop-blur-md flex rounded-full relative ${isGenerating ? 'border-transparent' : 'border border-white/20'} flex-row justify-between items-center shadow-lg transition-all duration-200 hover:shadow-xl overflow-hidden`}>
+          {/* Animated Progress Border */}
+          {isGenerating && (
+            <div className="absolute inset-0 rounded-full overflow-hidden">
+              <div className="absolute inset-0 -z-10 border border-white/40 rounded-full"></div>
+              <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 border-white/60 rounded-full animate-progress"></div>
+            </div>
+          )}
+          <div className="pl-3 flex items-center"></div>
+          <input
+            ref={inputRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            type="text"
+            className="text-base mx-3 bg-transparent rounded-full font-normal text-white/90 flex-1 border-none focus:outline-none focus:ring-0 placeholder-white/50"
+            placeholder="What ya wanna know?"
+          />
+          <div 
+            className="pr-3 cursor-pointer rounded-full hover:bg-white/10 p-1.5 transition-colors"
+            onClick={() => {
+              // Toggle through available models when clicking this button
+              const currentIndex = options.findIndex(option => option.value === selectedOption);
+              const nextIndex = (currentIndex + 1) % options.length;
+              setSelectedOption(options[nextIndex].value);
+            }}
+          >
+            <Image
+              src={`/images/${selectedOption}.png`}
+              height={20}
+              width={20}
+              alt={`${selectedOption} Model`}
+              className="rounded-full"
             />
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+      </form>
+    </>
   );
 }
